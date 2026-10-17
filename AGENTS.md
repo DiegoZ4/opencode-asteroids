@@ -10,7 +10,7 @@ Vanilla JS + HTML5 Canvas clone of Asteroids. No frameworks, no bundler, no depe
 ## Architecture
 
 - All game logic lives in `game.js`, loaded by `index.html` as a single classic `<script>` (not an ES module).
-- Layout: input handling → utils → entity classes (`Bullet`, `Asteroid`, `Ship`, `Particle`, each owning its `update(dt)`/`draw()`) → module-level game state with `update()`/`draw()` → `requestAnimationFrame` loop.
+- Layout: input handling → utils → entity classes (`Bullet`, `Asteroid`, `Ship`, `Particle`, `PowerUp`, each owning its `update(dt)`/`draw()`) → module-level game state with `update()`/`draw()` → `requestAnimationFrame` loop.
 - Game flow is a 3-value state machine: `state` is `'playing' | 'dead' | 'gameover'`, all branches handled in `update()`.
 
 ## Conventions & gotchas
@@ -20,5 +20,5 @@ Vanilla JS + HTML5 Canvas clone of Asteroids. No frameworks, no bundler, no depe
 - Difficulty tuning tables `RADII`, `SPEEDS`, `POINTS` are arrays indexed by asteroid `size` (1–3; index 0 unused).
 - Space is toroidal: every moving entity wraps via `wrap()` — never add manual edge checks. `dt` is clamped to 0.05 s in `loop()`.
 - Comments, README, and in-game HUD strings are in Spanish — keep new code and UI text in Spanish.
-- The README claims power-ups and a "estrella fugaz" asteroid type; **neither exists in the code**. Trust `game.js` over the README's feature list.
+- The README's feature list has drifted from the code before (it once advertised power-ups and asteroid types that didn't exist). Trust `game.js` as the source of truth, and update the README's "Características" section when adding features.
 - Gameplay details (controls, scoring) are documented in `README.md`.
