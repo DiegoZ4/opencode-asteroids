@@ -499,8 +499,14 @@ function spawnAsteroids(count) {
 
 const POWERUP_TYPES = ['velocidad', 'triple', 'escudo'];
 
+let powerUpBag = [];   // tipos pendientes del ciclo actual (bolsa sin repetición)
+
 function randomPowerUpType() {
-  return POWERUP_TYPES[randInt(0, POWERUP_TYPES.length - 1)];
+  // Bolsa barajada: el orden de aparición es aleatorio, pero se sacan los
+  // 3 tipos sin repetir antes de rellenar — ningún tipo puede tardar más
+  // de 3 apariciones en salir.
+  if (powerUpBag.length === 0) powerUpBag = [...POWERUP_TYPES];
+  return powerUpBag.splice(randInt(0, powerUpBag.length - 1), 1)[0];
 }
 
 function spawnPowerUp() {
