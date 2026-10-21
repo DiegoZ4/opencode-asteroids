@@ -5,7 +5,10 @@ Vanilla JS + HTML5 Canvas clone of Asteroids. No frameworks, no bundler, no depe
 ## Verify
 
 - No tests, lint, typecheck, or `package.json` exist — don't hunt for npm scripts.
-- Only verification is manual: open `index.html` directly in a browser (works without a server), or `npx serve .` and visit `http://localhost:3000`.
+- Never attempt browser verification (browser tools, `npx serve`, opening the game in a tab): the user runs OpenCode from the terminal, no desktop browser is ever connected, and `file://` URLs are rejected — it always fails.
+- Agent-side verification is Node-only: `node --check game.js` for syntax, plus a throwaway `vm` harness (DOM/canvas stubs: proxy-based `ctx`, no-op `window`/`document`/`requestAnimationFrame`) that appends scripted scenarios to the `game.js` source to exercise game logic deterministically. Write it in the temp dir, not in the repo.
+  - Harness gotcha: an empty `asteroids` array makes `update()` finish the level and call `ship.reset()` mid-scenario — keep a distant asteroid alive.
+- Manual visual verification (rendering, colors, HUD) stays with the user: open `index.html` directly in a browser (works without a server).
 
 ## Architecture
 

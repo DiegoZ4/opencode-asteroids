@@ -195,6 +195,8 @@ class Ship {
     this.thrusting     = false;
     this.invincible    = 3;
     this.speedBoost    = 0;   // segundos restantes del power-up Velocidad
+    this.shield        = 0;   // segundos restantes del power-up Escudo
+    this.shieldPulse   = 0;   // fase de la animación de la burbuja
     this.shootCooldown = 0;
     this.dead          = false;
   }
@@ -203,6 +205,10 @@ class Ship {
     if (this.dead) return;
     if (this.invincible    > 0) this.invincible    -= dt;
     if (this.speedBoost    > 0) this.speedBoost    -= dt;
+    if (this.shield        > 0) {
+      this.shield      -= dt;
+      this.shieldPulse += dt * 4;
+    }
     if (this.shootCooldown > 0) this.shootCooldown -= dt;
 
     const ROT   = 3.5;   // rad/s
@@ -267,6 +273,17 @@ class Ship {
     }
 
     ctx.restore();
+
+    // Burbuja del escudo (fuera de la rotación; parpadea cuando queda poco)
+    if (this.shield > 0) {
+      if (this.shield < 1.5 && Math.floor(this.shield * 8) % 2 === 0) return;
+      const r = 26 * (1 + Math.sin(this.shieldPulse) * 0.06);
+      ctx.strokeStyle = 'rgba(0, 255, 0, 0.9)';
+      ctx.lineWidth   = 1.5;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 }
 
@@ -302,11 +319,12 @@ class Particle {
   }
 }
 
-// ── Power-up (Velocidad) ──────────────────────────────────────────────────────
+// ── Power-ups (Velocidad / Escudo) ────────────────────────────────────────────
 class PowerUp {
-  constructor(x, y) {
+  constructor(x, y, type = 'velocidad') {
     this.x = x;
     this.y = y;
+    this.type = type;   // 'velocidad' | 'escudo'
     this.radius = 10;
     this.ttl  = 10;   // segundos en pantalla
     this.pulse = rand(0, Math.PI * 2);
@@ -328,23 +346,37 @@ class PowerUp {
     ctx.translate(this.x, this.y);
     ctx.scale(s, s);
 
-    // Círculo contenedor
-    ctx.strokeStyle = '#0ff';
+    // Círculo contenedor (cian para Velocidad, verde para Escudo)
+    ctx.strokeStyle = this.type === 'escudo' ? '#0f0' : '#0ff';
     ctx.lineWidth   = 1.5;
     ctx.beginPath();
     ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Rayo
-    ctx.beginPath();
-    ctx.moveTo( 2, -7);
-    ctx.lineTo(-4,  1);
-    ctx.lineTo(-1,  1);
-    ctx.lineTo(-3,  7);
-    ctx.lineTo( 4, -1);
-    ctx.lineTo( 1, -1);
-    ctx.closePath();
-    ctx.stroke();
+    if (this.type === 'escudo') {
+      // Hexágono (símbolo del escudo)
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a  = (i / 6) * Math.PI * 2;
+        const px = Math.cos(a) * 6;
+        const py = Math.sin(a) * 6;
+        if (i === 0) ctx.moveTo(px, py);
+        else         ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    } else {
+      // Rayo
+      ctx.beginPath();
+      ctx.moveTo( 2, -7);
+      ctx.lineTo(-4,  1);
+      ctx.lineTo(-1,  1);
+      ctx.lineTo(-3,  7);
+      ctx.lineTo( 4, -1);
+      ctx.lineTo( 1, -1);
+      ctx.closePath();
+      ctx.stroke();
+    }
 
     ctx.restore();
   }
@@ -378,7 +410,9 @@ function spawnPowerUp() {
     x = rand(0, W);
     y = rand(0, H);
   } while (Math.hypot(x - ship.x, y - ship.y) < SAFE_DIST);
-  powerUps.push(new PowerUp(x, y));
+  // Tipo aleatorio a partes iguales: Velocidad o Escudo
+  const type = Math.random() < 0.5 ? 'velocidad' : 'escudo';
+  powerUps.push(new PowerUp(x, y, type));
 }
 
 function spawnShootingStar() {
@@ -425,7 +459,8 @@ function explode(x, y, count = 8) {
 function killShip() {
   explode(ship.x, ship.y, 14);
   ship.dead = true;
-  ship.speedBoost = 0;   // el power-up se pierde al morir
+  ship.speedBoost = 0;   // los power-ups se pierden al morir
+  ship.shield     = 0;
   lives--;
   if (lives <= 0) {
     state = 'gameover';
@@ -494,8 +529,9 @@ function update(dt) {
         a.dead = true;
         score += a.points;
         explode(a.x, a.y, a.size * 5);
-        // La estrella fugaz suelta el power-up Velocidad en su lugar
-        if (a instanceof ShootingStar) powerUps.push(new PowerUp(a.x, a.y));
+        // La estrella fugaz suelta un power-up aleatorio (Velocidad o Escudo)
+        if (a instanceof ShootingStar)
+          powerUps.push(new PowerUp(a.x, a.y, Math.random() < 0.5 ? 'velocidad' : 'escudo'));
         newAsteroids.push(...a.split());
       }
     }
@@ -505,12 +541,21 @@ function update(dt) {
 
   // Nave vs asteroide
   if (ship.invincible <= 0) {
+    const frag = [];
     for (const a of asteroids) {
       if (dist(ship, a) < ship.radius + a.radius * 0.82) {
-        killShip();
-        break;
+        if (ship.shield > 0) {
+          // El escudo destruye el asteroide al contacto (se fragmenta, sin puntos)
+          a.dead = true;
+          explode(a.x, a.y, a.size * 5);
+          frag.push(...a.split());
+        } else {
+          killShip();
+          break;
+        }
       }
     }
+    asteroids = asteroids.filter(a => !a.dead).concat(frag);
   }
 
   // Nave vs power-up (recogerlo de nuevo refresca el tiempo)
@@ -518,7 +563,8 @@ function update(dt) {
     for (const pu of powerUps) {
       if (dist(ship, pu) < ship.radius + pu.radius) {
         pu.dead = true;
-        ship.speedBoost = 5;
+        if (pu.type === 'escudo') ship.shield = 6;
+        else                      ship.speedBoost = 5;
         explode(pu.x, pu.y, 10);
       }
     }
@@ -558,6 +604,13 @@ function drawHUD() {
   if (ship.speedBoost > 0) {
     ctx.fillStyle = '#0ff';
     ctx.fillText(`VELOCIDAD ${ship.speedBoost.toFixed(1)}s`, 14, 46);
+    ctx.fillStyle = '#fff';
+  }
+
+  // Cuenta regresiva del power-up Escudo
+  if (ship.shield > 0) {
+    ctx.fillStyle = '#0f0';
+    ctx.fillText(`ESCUDO ${ship.shield.toFixed(1)}s`, 14, 66);
     ctx.fillStyle = '#fff';
   }
 
