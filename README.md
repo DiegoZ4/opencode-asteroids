@@ -30,6 +30,8 @@ Luego visita `http://localhost:3000`.
 | `↑`       | Propulsar  |
 | `Espacio` | Disparar   |
 
+En la pantalla de **Game Over**, `←` `→` cambian la nave (skin) y `Espacio` reinicia con la elegida. La selección se recuerda entre sesiones (`localStorage`).
+
 ## Puntuación
 
 | Asteroide | Puntos |
@@ -47,3 +49,4 @@ La **estrella fugaz** no otorga puntos: destruirla suelta un power-up **Velocida
 - Partículas de explosión al destruir asteroides
 - Power-up **Velocidad**: aparece en el campo cada cierto tiempo; al recogerlo, la nave se mueve al doble de rapidez durante 5 s (se pierde al morir)
 - **Estrella fugaz**: asteroide especial dorado que aparece en el campo cada cierto tiempo, se mueve mucho más rápido que el resto y se apaga sola a los pocos segundos (parpadea antes de desaparecer); como todo asteroide, mata la nave al contacto. Destruirla no da puntos, pero suelta un power-up **Velocidad** donde estaba
+- **Skins de nave**: 4 naves con formas y colores propios (Clásica, Caza, Dardo y Platillo); se eligen en la pantalla de Game Over y la selección se recuerda entre sesiones. Los iconos de vidas reflejan la nave elegida
