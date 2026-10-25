@@ -1,0 +1,162 @@
+# Da formato a los issues nuevos: detecta etiquetas por palabras clave (título y
+# cuerpo) y añade al final del issue información útil para revisarlo, sin alterar
+# el texto original de quien lo abrió (se delimita con un separador y un marcador
+# HTML oculto que evita procesar el issue dos veces).
+
+name: formatear-issue
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  formatear:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Formatear, etiquetar y añadir info de revisión
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const { owner, repo } = context.repo;
+
+            const MARKER = '<!-- formateado-por-workflow -->';
+            const cuerpo = issue.body ?? '';
+
+            // Idempotencia: si el issue ya fue formateado (p. ej. por una
+            // re-ejecución manual del workflow), no se toca nada.
+            if (cuerpo.includes(MARKER)) {
+              core.info('El issue ya fue formateado; no se hace nada.');
+              return;
+            }
+
+            // 1) Etiquetas detectables por palabras clave (ES/EN) en título y cuerpo.
+            const ETIQUETAS = [
+              {
+                name: 'bug',
+                color: 'd73a4a',
+                description: 'Algo no funciona como debería',
+                keywords: ['bug', 'error', 'fallo', 'falla', 'crash', 'congela',
+                  'se traba', 'trabado', 'rompe', 'no funciona', 'no anda',
+                  'deja de funcionar', 'funciona mal', 'broken', 'not working',
+                  "doesn't work", 'doesnt work'],
+              },
+              {
+                name: 'mejora',
+                color: 'a2eeef',
+                description: 'Solicitud de nueva funcionalidad',
+                keywords: ['mejora', 'feature', 'añadir', 'anadir', 'agregar',
+                  'sugerencia', 'propuesta', 'enhancement'],
+              },
+              {
+                name: 'pregunta',
+                color: 'd876e3',
+                description: 'Duda o consulta sobre el proyecto',
+                keywords: ['pregunta', 'duda', 'cómo', 'como hago', 'question',
+                  'ayuda'],
+              },
+              {
+                name: 'documentación',
+                color: '0075ca',
+                description: 'Relacionado con el README o la documentación',
+                keywords: ['readme', 'docs', 'documentación', 'documentacion',
+                  'documentation'],
+              },
+            ];
+            const TRIAJE = {
+              name: 'triaje',
+              color: 'fbca04',
+              description: 'Issue nuevo pendiente de revisión',
+            };
+
+            const texto = `${issue.title ?? ''}\n${cuerpo}`.toLowerCase();
+            const detectadas = ETIQUETAS
+              .filter(e => e.keywords.some(k => texto.includes(k)))
+              .map(e => e.name);
+            const etiquetas = [...new Set([...detectadas, TRIAJE.name])];
+
+            // 2) Cuerpo nuevo: texto original TAL CUAL + info de revisión al final.
+            const fecha = issue.created_at
+              ? issue.created_at.slice(0, 10).split('-').reverse().join('/')
+              : '';
+            const autor = issue.user?.login ? `@${issue.user.login}` : 'desconocido';
+            const original = cuerpo.trim() === '' ? '*Sin descripción.*' : cuerpo;
+
+            const seccion = [
+              '',
+              '---',
+              '',
+              MARKER,
+              '## 🔎 Información para la revisión',
+              '',
+              '| Campo | Valor |',
+              '| --- | --- |',
+              `| Issue | #${issue.number} |`,
+              `| Autor | ${autor} |`,
+              `| Creado | ${fecha} |`,
+              `| Etiquetas | ${etiquetas.map(e => '`' + e + '`').join(' ')} |`,
+              '',
+              '### ✅ Checklist del reporte (completar lo que falte)',
+              '- [ ] Navegador y versión',
+              '- [ ] Sistema operativo',
+              '- [ ] Pasos para reproducir',
+              '- [ ] Comportamiento esperado vs. obtenido',
+              '- [ ] Captura o GIF',
+              '',
+              '### 🧩 Contexto del proyecto',
+              '- Vanilla JS + Canvas, sin build ni dependencias: abrir `index.html` directo en el navegador',
+              '- Toda la lógica vive en `game.js`; controles y puntuación en `README.md`',
+              '',
+            ].join('\n');
+
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number: issue.number,
+              body: original + seccion,
+            });
+
+            // 3) Etiquetas: crear las que falten en el repo y añadirlas al issue.
+            const existentes = new Set(
+              (await github.paginate(github.rest.issues.listLabelsForRepo, {
+                owner,
+                repo,
+                per_page: 100,
+              })).map(l => l.name),
+            );
+
+            for (const def of [...ETIQUETAS, TRIAJE]) {
+              if (!etiquetas.includes(def.name) || existentes.has(def.name)) continue;
+              try {
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: def.name,
+                  color: def.color,
+                  description: def.description,
+                });
+                existentes.add(def.name);
+                core.info(`Etiqueta creada: ${def.name}`);
+              } catch (e) {
+                core.warning(`No se pudo crear la etiqueta "${def.name}": ${e.message}`);
+              }
+            }
+
+            const aplicables = etiquetas.filter(e => existentes.has(e));
+            if (aplicables.length > 0) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  labels: aplicables,
+                });
+              } catch (e) {
+                core.warning(`No se pudieron añadir las etiquetas: ${e.message}`);
+              }
+            }
+
+            core.info(`Issue #${issue.number} formateado. Etiquetas: ${aplicables.join(', ')}`);
