@@ -40,7 +40,7 @@ En la pantalla de **Game Over**, `←` `→` cambian la nave (skin) y `Espacio` 
 | Mediano   | 50     |
 | Pequeño   | 100    |
 
-La **estrella fugaz** no otorga puntos: destruirla suelta un power-up (**Velocidad**, **Triple disparo** o **Escudo**) donde estaba. Los asteroides destruidos por el **Escudo** tampoco otorgan puntos.
+La **estrella fugaz** no otorga puntos: destruirla suelta un power-up (**Velocidad**, **Triple disparo** o **Escudo**) donde estaba. Los asteroides destruidos por el **Escudo** tampoco otorgan puntos. Con la nave **River**, todos los puntos obtenidos se duplican (×2).
 
 ## Características
 
@@ -51,4 +51,5 @@ La **estrella fugaz** no otorga puntos: destruirla suelta un power-up (**Velocid
 - Power-up **Triple disparo**: aparece en el campo cada cierto tiempo; al recogerlo, cada disparo lanza tres balas (en amarillo) que salen del morro y se abren en abanico durante 5 s (se pierde al morir)
 - Power-up **Escudo**: aparece en el campo cada cierto tiempo; al recogerlo, una burbuja verde rodea la nave durante 6 s y destruye los asteroides que la toquen (se fragmentan como con un disparo, pero sin puntos; la estrella fugaz destruida por el escudo no suelta power-up). Se pierde al morir
 - **Estrella fugaz**: asteroide especial dorado que aparece en el campo cada cierto tiempo, se mueve mucho más rápido que el resto y se apaga sola a los pocos segundos (parpadea antes de desaparecer); como todo asteroide, mata la nave al contacto. Destruirla no da puntos, pero suelta un power-up (**Velocidad**, **Triple disparo** o **Escudo**) donde estaba
-- **Skins de nave**: 4 naves con formas y colores propios (Clásica, Caza, Dardo y Platillo); se eligen en la pantalla de Game Over y la selección se recuerda entre sesiones. Los iconos de vidas reflejan la nave elegida
+- **Skins de nave**: 5 naves con formas y colores propios (Clásica, Caza, Dardo, Platillo y River); se eligen en la pantalla de Game Over y la selección se recuerda entre sesiones. Los iconos de vidas reflejan la nave elegida
+- **Nave River**: luce la camiseta de River Plate (casco blanco con banda roja diagonal) y es el doble de grande que el resto (radio de colisión, morro de disparo, llama y burbuja de escudo también se duplican), pero a cambio el jugador recibe el **doble de puntos** (×2) con ella; el HUD lo indica con un aviso «PUNTOS ×2»

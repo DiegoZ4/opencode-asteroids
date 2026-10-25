@@ -33,6 +33,8 @@ const randInt = (min, max) => Math.floor(rand(min, max + 1));
 // Cada skin define: casco (polígono cerrado, nariz en x≈20 para que el origen
 // de balas NOSE=21 siga en la punta), detalles (polilíneas internas),
 // trazo/relleno/llama (colores) y llamaX/llamaW (base de la llama).
+// Opcionales: escala (agranda la nave: radio de colisión, morro, llama y
+// escudo se multiplican por ella) y mult (multiplica los puntos obtenidos).
 const SKINS = [
   {
     id: 'clasica', nombre: 'Clásica',
@@ -66,6 +68,17 @@ const SKINS = [
     detalles: [[[9, -3], [13, 0], [9, 3]],
                [[-6, -4], [-2, -4]], [[-6, 4], [-2, 4]]],
   },
+  {
+    id: 'river', nombre: 'River',
+    trazo: '#fff', relleno: 'rgba(255, 255, 255, 0.85)',
+    // Banda roja diagonal (camiseta de River), recortada al casco por drawHull
+    franja: [[-19, -8], [-12, -14], [26, 10], [18, 18]], franjaColor: '#e11',
+    llama: 'rgba(255, 0, 0, 0.9)', llamaX: -8, llamaW: 4,
+    casco: [[20, 0], [-12, -10], [-7, 0], [-12, 10]],
+    detalles: [],
+    escala: 2,   // el doble de grande que el resto de naves
+    mult: 2,     // el doble de puntos con ella
+  },
 ];
 
 const SKIN_KEY = 'asteroids.skin';
@@ -85,6 +98,10 @@ function selectSkin(i) {
 
 let skinIndex = loadSkin();
 
+// Escala y multiplicador de puntos de la skin activa (1 por defecto)
+const skinEscala = () => SKINS[skinIndex].escala || 1;
+const skinMult   = () => SKINS[skinIndex].mult   || 1;
+
 // Dibuja el casco de una skin (con relleno tenue opcional) a la escala dada.
 // El llamador fija translate/rotate/lineWidth/lineJoin.
 function drawHull(skin, escala = 1) {
@@ -101,6 +118,20 @@ function drawHull(skin, escala = 1) {
   ctx.strokeStyle = skin.trazo;
   ctx.stroke();
 
+  // Franja cerrada recortada al casco (la banda roja de River)
+  if (skin.franja) {
+    ctx.save();
+    ctx.clip();   // el path del casco sigue siendo el path actual
+    ctx.beginPath();
+    ctx.moveTo(skin.franja[0][0] * escala, skin.franja[0][1] * escala);
+    for (let i = 1; i < skin.franja.length; i++)
+      ctx.lineTo(skin.franja[i][0] * escala, skin.franja[i][1] * escala);
+    ctx.closePath();
+    ctx.fillStyle = skin.franjaColor;
+    ctx.fill();
+    ctx.restore();
+  }
+
   for (const d of skin.detalles) {
     ctx.beginPath();
     ctx.moveTo(d[0][0] * escala, d[0][1] * escala);
@@ -108,6 +139,18 @@ function drawHull(skin, escala = 1) {
       ctx.lineTo(d[i][0] * escala, d[i][1] * escala);
     ctx.stroke();
   }
+}
+
+// Envergadura del casco de una skin (para las cajas del selector de naves)
+function hullBBox(skin) {
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const [x, y] of skin.casco) {
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
+  }
+  return { x0, x1, y0, y1 };
 }
 
 // ── Bullet ────────────────────────────────────────────────────────────────────
@@ -273,7 +316,7 @@ class Ship {
     this.angle  = -Math.PI / 2;
     this.vx     = 0;
     this.vy     = 0;
-    this.radius = 12;
+    this.radius = 12 * skinEscala();   // las naves grandes colisionan más lejos
     this.thrusting     = false;
     this.invincible    = 3;
     this.speedBoost    = 0;   // segundos restantes del power-up Velocidad
@@ -317,7 +360,7 @@ class Ship {
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
-    const NOSE = 21;
+    const NOSE = 21 * skinEscala();   // el morro se aleja en naves grandes
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
     // Triple: tres balas desde el morro que se abren en abanico
@@ -334,6 +377,7 @@ class Ship {
     if (this.invincible > 0 && Math.floor(this.invincible * 8) % 2 === 0) return;
 
     const skin = SKINS[skinIndex];
+    const esc  = skin.escala || 1;
 
     ctx.save();
     ctx.translate(this.x, this.y);
@@ -341,15 +385,17 @@ class Ship {
     ctx.lineWidth   = 1.5;
     ctx.lineJoin    = 'round';
 
-    // Casco según la skin activa
-    drawHull(skin);
+    // Casco según la skin activa (las naves con escala se dibujan más grandes)
+    drawHull(skin, esc);
 
     // Llama del propulsor: color de la skin (más larga y cian con Velocidad activo)
     if (this.thrusting && Math.random() > 0.35) {
+      const lx = skin.llamaX * esc;
+      const lw = skin.llamaW * esc;
       ctx.beginPath();
-      ctx.moveTo(skin.llamaX, -skin.llamaW);
-      ctx.lineTo(skin.llamaX - rand(6, 14) * (this.speedBoost > 0 ? 1.8 : 1), 0);
-      ctx.lineTo(skin.llamaX, skin.llamaW);
+      ctx.moveTo(lx, -lw);
+      ctx.lineTo(lx - rand(6, 14) * esc * (this.speedBoost > 0 ? 1.8 : 1), 0);
+      ctx.lineTo(lx, lw);
       ctx.strokeStyle = this.speedBoost > 0
         ? 'rgba(0, 255, 255, 0.9)'
         : skin.llama;
@@ -361,7 +407,7 @@ class Ship {
     // Burbuja del escudo (fuera de la rotación; parpadea cuando queda poco)
     if (this.shield > 0) {
       if (this.shield < 1.5 && Math.floor(this.shield * 8) % 2 === 0) return;
-      const r = 26 * (1 + Math.sin(this.shieldPulse) * 0.06);
+      const r = 26 * esc * (1 + Math.sin(this.shieldPulse) * 0.06);
       ctx.strokeStyle = 'rgba(0, 255, 0, 0.9)';
       ctx.lineWidth   = 1.5;
       ctx.beginPath();
@@ -636,7 +682,7 @@ function update(dt) {
       if (!a.dead && !b.dead && dist(b, a) < a.radius) {
         b.dead = true;
         a.dead = true;
-        score += a.points;
+        score += a.points * skinMult();   // River (u otra skin con mult) duplica los puntos
         explode(a.x, a.y, a.size * 5);
         // La estrella fugaz suelta un power-up aleatorio (Velocidad, Triple o Escudo)
         if (a instanceof ShootingStar) powerUps.push(new PowerUp(a.x, a.y, randomPowerUpType()));
@@ -691,7 +737,8 @@ function drawLifeIcon(x, y) {
   ctx.rotate(-Math.PI / 2);
   ctx.lineWidth   = 1.2;
   ctx.lineJoin    = 'round';
-  drawHull(SKINS[skinIndex], 0.55);
+  // Las naves grandes se ven más grandes, pero acotadas para no invadir el HUD
+  drawHull(SKINS[skinIndex], Math.min(0.55 * skinEscala(), 0.8));
   ctx.restore();
 }
 
@@ -702,8 +749,15 @@ function drawHUD() {
   ctx.textAlign = 'left';
   ctx.fillText(`SCORE  ${score}`, 14, 26);
 
-  // Cuenta regresiva de los power-ups activos
+  // Aviso del multiplicador de puntos de la skin activa (River)
   let py = 46;
+  if (skinMult() > 1) {
+    ctx.fillStyle = '#f44';
+    ctx.fillText(`PUNTOS ×${skinMult()}`, 14, py);
+    py += 20;
+  }
+
+  // Cuenta regresiva de los power-ups activos
   if (ship.speedBoost > 0) {
     ctx.fillStyle = '#0ff';
     ctx.fillText(`VELOCIDAD ${ship.speedBoost.toFixed(1)}s`, 14, py);
@@ -747,9 +801,11 @@ function drawSkinMenu() {
   ctx.fillText('◄ ►  CAMBIAR NAVE', W / 2, H / 2 + 60);
 
   for (let i = 0; i < SKINS.length; i++) {
+    const skin = SKINS[i];
     const x   = W / 2 + (i - (SKINS.length - 1) / 2) * 130;
     const y   = H / 2 + 108;
     const sel = i === skinIndex;
+    const s   = 1.4 * (skin.escala || 1);   // River se previsualiza a doble tamaño
 
     ctx.save();
     ctx.globalAlpha = sel ? 1 : 0.3;
@@ -757,18 +813,29 @@ function drawSkinMenu() {
     ctx.rotate(-Math.PI / 2);   // apuntando hacia arriba, como los iconos de vidas
     ctx.lineWidth   = 1.5;
     ctx.lineJoin    = 'round';
-    drawHull(SKINS[i], 1.4);
+    drawHull(skin, s);
     ctx.restore();
 
     ctx.font        = '13px monospace';
-    ctx.fillStyle   = sel ? SKINS[i].trazo : 'rgba(255,255,255,0.3)';
-    ctx.fillText(SKINS[i].nombre.toUpperCase(), x, y + 40);
+    ctx.fillStyle   = sel ? skin.trazo : 'rgba(255,255,255,0.3)';
+    ctx.fillText(skin.nombre.toUpperCase(), x, y + 48);
+
+    // Aviso del multiplicador de puntos de la skin (River)
+    if (skin.mult > 1) {
+      ctx.fillStyle = sel ? '#f55' : 'rgba(255, 85, 85, 0.3)';
+      ctx.fillText(`PUNTOS ×${skin.mult}`, x, y + 64);
+    }
 
     if (sel) {
+      // Caja punteada ajustada a la envergadura real de la vista previa
+      const b  = hullBBox(skin);
+      const cy = y - (b.x0 + b.x1) / 2 * s;
+      const hw = (b.y1 - b.y0) / 2 * s + 8;
+      const hh = (b.x1 - b.x0) / 2 * s + 8;
       ctx.strokeStyle = 'rgba(255,255,255,0.45)';
       ctx.lineWidth   = 1;
       ctx.setLineDash([4, 4]);
-      ctx.strokeRect(x - 36, y - 34, 72, 62);
+      ctx.strokeRect(x - hw, cy - hh, hw * 2, hh * 2);
       ctx.setLineDash([]);
     }
   }
